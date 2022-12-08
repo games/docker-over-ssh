@@ -1,4 +1,6 @@
 .idea
+.ionide
 .DS_Store
+src/nupkg
 bin
 obj
