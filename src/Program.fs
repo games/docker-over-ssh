@@ -63,7 +63,7 @@ let messageProcess (table: Table) (ctx: LiveDisplayContext) =
                     Text $"{row.Status}"
                     if isNotNull row.Progress then
                         let progress = float row.Progress.Current / float row.Progress.Total
-                        Text (if Double.IsNaN progress then "-" else $"{progress}") 
+                        Text (if Double.IsNaN progress then "N/A" else $"{progress}") 
                     if isNotNull row.ProgressMessage then
                         Text row.ProgressMessage
                     if isNotNull row.Error then
@@ -77,14 +77,8 @@ let messageProcess (table: Table) (ctx: LiveDisplayContext) =
         ctx.Refresh()
     { new IProgress<JSONMessage> with
         member _.Report value =
-            if isNull value.ID then
-                if isNotNull value.Error then
-                    rows.Add ("Error", value)
-                else
-                    rows.Clear()
-                    AnsiConsole.WriteLine $"{value.Status}"
-            elif not (rows.ContainsKey value.ID) then
-                rows.Add (value.ID, value)
+            let key = if isNull value.ID then "Nil" else value.ID
+            rows[key] <- value
             refresh() }
 
 let dockerClient () =
