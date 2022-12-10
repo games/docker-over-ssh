@@ -17,10 +17,11 @@
 
   <ItemGroup>
     <Compile Include="Program.fs" />
-    <None Include="../README.MD" Pack="true" PackagePath="\"/>
+    <None Include="../README.MD" Pack="true" PackagePath="\" />
   </ItemGroup>
   
   <ItemGroup>
+    <PackageReference Include="Spectre.Console" Version="0.45.0" />
     <PackageReference Include="SSH.NET" Version="2020.0.2" />
     <PackageReference Include="Docker.DotNet" Version="3.125.12" />
     <PackageReference Include="FsHttp" Version="10.0.0" />

@@ -1,9 +1,11 @@
 ﻿open System
+open System.Collections.Generic
 open System.Threading.Tasks
 open Argu
 open Docker.DotNet.Models
 open Renci.SshNet
 open Docker.DotNet
+open Spectre.Console
 
 let isNotNull x = x |> isNull |> not
 
@@ -45,18 +47,39 @@ let argsParser =
 
 
 let messageProcess =
+    let table = Table()
+    let rows = Dictionary<string, JSONMessage>()
+    
+    let headers = [ "ID"; "Status"; "Progress"; "Progress Message"; "Error"; "Error Message" ]
+    headers |> List.iter (table.AddColumn >> ignore)
+    
+    let inline render () =
+        table.Rows.Clear()
+        for row in rows.Values do
+            let columns =
+                seq {
+                    Text row.ID
+                    Text row.Status
+                    if isNotNull row.Progress then
+                        let progress = float row.Progress.Current / float row.Progress.Total
+                        Text (if Double.IsNaN progress then " - " else $"{progress}") 
+                    if isNotNull row.ProgressMessage then
+                        Text row.ProgressMessage
+                    if isNotNull row.Error then
+                        Text $"{row.Error.Code}"
+                        Text row.Error.Message
+                }
+            columns
+            |> Seq.cast
+            |> table.AddRow 
+            |> AnsiConsole.Write
     { new IProgress<JSONMessage> with
         member _.Report value =
-            printfn "report: %s %A" value.ID value.Status
-
-            if isNotNull value.Progress then
-                printfn
-                    " progress: %s - %f"
-                    value.ProgressMessage
-                    (float value.Progress.Current / float value.Progress.Total)
-
-            if isNotNull value.Error then
-                printfn " error: %i - %s" value.Error.Code value.ErrorMessage }
+            if isNull value.ID then
+                printfn "%A" value
+            elif not (rows.ContainsKey value.ID) then
+                rows.Add (value.ID, value)
+            render() }
 
 let dockerClient () =
     let cfg = new DockerClientConfiguration()
