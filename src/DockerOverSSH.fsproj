@@ -8,9 +8,11 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>docker-over-ssh</ToolCommandName>
     <PackageOutputPath>./nupkg</PackageOutputPath>
-    <Authors>Valor</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.MD</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/games/docker-over-ssh</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/games/docker-over-ssh</RepositoryUrl>
+    <Authors>Valor</Authors>
   </PropertyGroup>
 
   <ItemGroup>
