@@ -46,23 +46,24 @@ let argsParser =
     ArgumentParser.Create<Arguments>(programName = "docker-over-ssh", errorHandler = errorHandler)
 
 
-let messageProcess =
+let initTable () =
     let table = Table()
-    let rows = Dictionary<string, JSONMessage>()
-    
     let headers = [ "ID"; "Status"; "Progress"; "Progress Message"; "Error"; "Error Message" ]
     headers |> List.iter (table.AddColumn >> ignore)
-    
-    let inline render () =
+    table
+
+let messageProcess (table: Table) (ctx: LiveDisplayContext) =
+    let rows = Dictionary<string, JSONMessage>()
+    let inline refresh () =
         table.Rows.Clear()
         for row in rows.Values do
             let columns =
                 seq {
-                    Text row.ID
-                    Text row.Status
+                    Text $"{row.ID}"
+                    Text $"{row.Status}"
                     if isNotNull row.Progress then
                         let progress = float row.Progress.Current / float row.Progress.Total
-                        Text (if Double.IsNaN progress then " - " else $"{progress}") 
+                        Text (if Double.IsNaN progress then "-" else $"{progress}") 
                     if isNotNull row.ProgressMessage then
                         Text row.ProgressMessage
                     if isNotNull row.Error then
@@ -71,21 +72,26 @@ let messageProcess =
                 }
             columns
             |> Seq.cast
-            |> table.AddRow 
-            |> AnsiConsole.Write
+            |> table.AddRow
+            |> ignore
+        ctx.Refresh()
     { new IProgress<JSONMessage> with
         member _.Report value =
             if isNull value.ID then
-                printfn "%A" value
+                if isNotNull value.Error then
+                    rows.Add ("Error", value)
+                else
+                    rows.Clear()
+                    AnsiConsole.WriteLine $"{value.Status}"
             elif not (rows.ContainsKey value.ID) then
                 rows.Add (value.ID, value)
-            render() }
+            refresh() }
 
 let dockerClient () =
     let cfg = new DockerClientConfiguration()
     cfg.CreateClient()
 
-let run (args: ParseResults<Arguments>) =
+let run (args: ParseResults<Arguments>) (messageProcess: IProgress<JSONMessage>) =
     task {
         let sshHost = args.GetResult SSH_Host
         let sshUser = args.GetResult SSH_User
@@ -105,7 +111,7 @@ let run (args: ParseResults<Arguments>) =
         client.AddForwardedPort forwardedPortLocal
         forwardedPortLocal.Start()
 
-        do! Task.Delay 1000
+        do! Task.Delay 500
         
         let docker = dockerClient ()
         do!
@@ -115,14 +121,17 @@ let run (args: ParseResults<Arguments>) =
                 AuthConfig(),
                 messageProcess
             )
-
-        printfn "Done, press any key quit the tools"
-        Console.Read() |> ignore
     }
 
 
 [<EntryPoint>]
 let main argv =
-    let args = argsParser.ParseCommandLine argv
-    run(args).Wait()
+    let table = initTable ()
+    AnsiConsole.Live(table)
+        .StartAsync(fun ctx -> task {
+            let args = argsParser.ParseCommandLine argv
+            let proc = messageProcess table ctx
+            do! run args proc
+        })
+        .Wait()
     0
