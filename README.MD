@@ -1,5 +1,7 @@
 ### A dotnet tools for pushing docker image over SSH
 
+[![NuGet Status](https://img.shields.io/nuget/v/DockerOverSSH.svg?style=flat)](https://www.nuget.org/packages/DockerOverSSH/)
+
 
 ### 1. Install as dotnet tools
 ```sh
