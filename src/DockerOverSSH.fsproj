@@ -18,6 +18,9 @@
   <ItemGroup>
     <Compile Include="Program.fs" />
     <None Include="../README.MD" Pack="true" PackagePath="\" />
+    <Content Include="..\RELEASE_NOTES.md">
+      <Link>RELEASE_NOTES.md</Link>
+    </Content>
   </ItemGroup>
   
   <ItemGroup>
