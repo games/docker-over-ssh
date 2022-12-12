@@ -95,7 +95,7 @@ let run (args: ParseResults<Arguments>) (messageProcess: IProgress<JSONMessage>)
         let registryPort = args.GetResult(Registry_Port, 5000u)
         let imageId = args.GetResult Image_Id
         let imageTag = args.GetResult(Image_Tag, "latest")
-        let imageName = $"{localHostName}:{localPort}/{imageId}:{imageTag}"
+        let imageName = $"{imageId}:{imageTag}"
         
         use privateKey = new PrivateKeyFile(args.GetResult SSH_Key)
         use client = new SshClient(sshHost, sshUser, privateKey)
