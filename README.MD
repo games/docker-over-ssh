@@ -5,7 +5,7 @@
 
 ### 1. Install as dotnet tools
 ```sh
-dotnet tool install DockerOverSSH --version 0.0.3-alpha
+dotnet tool install DockerOverSSH --version 0.0.5-alpha
 ```
 
 ### 2. Push docker image over SSH
@@ -20,3 +20,6 @@ dotnet docker-over-ssh --ssh-key "/Users/dev/.ssh/id_ed25519" \
         --image-id "myWebApi" \
         --image-tag "latest"
 ```
+
+### Notes
+- The local image name format should be `$local-hostname:$local-port/$image-id:$image-tag`

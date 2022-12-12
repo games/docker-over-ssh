@@ -42,6 +42,7 @@ let errorHandler =
             | _ -> Some ConsoleColor.Red
     )
 
+
 let argsParser =
     ArgumentParser.Create<Arguments>(programName = "docker-over-ssh", errorHandler = errorHandler)
 
@@ -51,6 +52,7 @@ let initTable () =
     let headers = [ "ID"; "Status"; "Progress"; "Progress Message"; "Error"; "Error Message" ]
     headers |> List.iter (table.AddColumn >> ignore)
     table
+
 
 let messageProcess (table: Table) (ctx: LiveDisplayContext) =
     let rows = Dictionary<string, JSONMessage>()
@@ -81,9 +83,11 @@ let messageProcess (table: Table) (ctx: LiveDisplayContext) =
             rows[key] <- value
             refresh() }
 
+
 let dockerClient () =
     let cfg = new DockerClientConfiguration()
     cfg.CreateClient()
+
 
 let run (args: ParseResults<Arguments>) (messageProcess: IProgress<JSONMessage>) =
     task {
@@ -95,7 +99,7 @@ let run (args: ParseResults<Arguments>) (messageProcess: IProgress<JSONMessage>)
         let registryPort = args.GetResult(Registry_Port, 5000u)
         let imageId = args.GetResult Image_Id
         let imageTag = args.GetResult(Image_Tag, "latest")
-        let imageName = $"{imageId}:{imageTag}"
+        let imageName = $"{localHostName}:{localPort}/{imageId}:{imageTag}"
         
         use privateKey = new PrivateKeyFile(args.GetResult SSH_Key)
         use client = new SshClient(sshHost, sshUser, privateKey)
@@ -108,6 +112,7 @@ let run (args: ParseResults<Arguments>) (messageProcess: IProgress<JSONMessage>)
         do! Task.Delay 500
         
         let docker = dockerClient ()
+        printfn "Pushing image '%s'" imageName
         do!
             docker.Images.PushImageAsync(
                 imageName,
