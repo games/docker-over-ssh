@@ -17,8 +17,9 @@ dotnet docker-over-ssh --ssh-key "/Users/dev/.ssh/id_ed25519" \
         --local-port 4040 \
         --registry-host "192.168.10.10" \
         --registry-port 5000 \
-        --image-id "myWebApi" \
-        --image-tag "latest"
+        --image "myrepo/db:latest" \
+        --image "myrepo/service1:latest" \
+        --image "myrepo/api:latest"
 ```
 
 ### Notes
