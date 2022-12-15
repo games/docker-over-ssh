@@ -18,8 +18,7 @@ type Arguments =
     | Local_Port of uint
     | [<Mandatory>] Registry_Host of string
     | Registry_Port of uint
-    | [<Mandatory>] Image_Id of string
-    | Image_Tag of string
+    | [<Mandatory>] Image of string
 
     interface IArgParserTemplate with
         member this.Usage =
@@ -31,8 +30,7 @@ type Arguments =
             | Local_Port _ -> "The local bound port, default is 5000"
             | Registry_Host _ -> "The hostname of the registry"
             | Registry_Port _ -> "The remote port, default is 5000"
-            | Image_Id _ -> "The docker image ID"
-            | Image_Tag _ -> "The docker image tag, default is `latest`"
+            | Image _ -> "The docker images list"
 
 
 let errorHandler =
@@ -65,7 +63,7 @@ let messageProcess (table: Table) (ctx: LiveDisplayContext) =
                     Text $"{row.Status}"
                     if isNotNull row.Progress then
                         let progress = float row.Progress.Current / float row.Progress.Total
-                        Text (if Double.IsNaN progress then "N/A" else $"{progress}") 
+                        Text (if Double.IsNaN progress then "N/A" else $"0.2f{progress * 100.0}%%") 
                     if isNotNull row.ProgressMessage then
                         Text row.ProgressMessage
                     if isNotNull row.Error then
@@ -97,9 +95,7 @@ let run (args: ParseResults<Arguments>) (messageProcess: IProgress<JSONMessage>)
         let localPort = args.GetResult(Local_Port, 5000u)
         let registryHost = args.GetResult Registry_Host
         let registryPort = args.GetResult(Registry_Port, 5000u)
-        let imageId = args.GetResult Image_Id
-        let imageTag = args.GetResult(Image_Tag, "latest")
-        let imageName = $"{localHostName}:{localPort}/{imageId}:{imageTag}"
+        let images = args.GetResults Image
         
         use privateKey = new PrivateKeyFile(args.GetResult SSH_Key)
         use client = new SshClient(sshHost, sshUser, privateKey)
@@ -112,14 +108,14 @@ let run (args: ParseResults<Arguments>) (messageProcess: IProgress<JSONMessage>)
         do! Task.Delay 500
         
         let docker = dockerClient ()
-        printfn "Pushing image '%s'" imageName
-        do!
-            docker.Images.PushImageAsync(
-                imageName,
-                ImagePushParameters(),
-                AuthConfig(),
-                messageProcess
-            )
+        for imageName in images do
+            do!
+                docker.Images.PushImageAsync(
+                    imageName,
+                    ImagePushParameters(),
+                    AuthConfig(),
+                    messageProcess
+                )
     }
 
 
