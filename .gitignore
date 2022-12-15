@@ -1,5 +1,6 @@
 .idea
 .ionide
+.env
 .DS_Store
 src/nupkg
 bin

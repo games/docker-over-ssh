@@ -5,6 +5,11 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "DockerOverSSH", "src\DockerOverSSH.fsproj", "{E6C471A8-E98E-4F02-9B30-2E0D907ACAA4}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionFolder", "SolutionFolder", "{001E668C-F5A8-401D-B0BB-D8F9A5B1C124}"
+	ProjectSection(SolutionItems) = preProject
+		publish.sh = publish.sh
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
