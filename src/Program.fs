@@ -34,6 +34,7 @@ type Arguments =
             | Image_Id _ -> "The docker image ID"
             | Image_Tag _ -> "The docker image tag, default is `latest`"
 
+
 let errorHandler =
     ProcessExiter(
         colorizer =
@@ -50,8 +51,7 @@ let argsParser =
 let initTable () =
     let table = Table()
     let headers = [ "ID"; "Status"; "Progress"; "Progress Message"; "Error"; "Error Message" ]
-    headers |> List.iter (table.AddColumn >> ignore)
-    table
+    headers |> List.fold (fun (table: Table) -> table.AddColumn) table
 
 
 let messageProcess (table: Table) (ctx: LiveDisplayContext) =
