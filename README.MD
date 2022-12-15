@@ -5,7 +5,7 @@
 
 ### 1. Install as dotnet tools
 ```sh
-dotnet tool install DockerOverSSH --version 0.0.5-alpha
+dotnet tool install DockerOverSSH --version 0.0.6-alpha
 ```
 
 ### 2. Push docker image over SSH
