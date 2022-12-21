@@ -1,10 +1,12 @@
-if [ ! -f "$pwd/.env" ]
-then
+#!/bin/bash
+set -e 
+
+if [[ -f ".env" ]]; then
 
   export $(cat .env | xargs)
-
   nupkgDir="./src/nupkg"
-  rm -rf "$nupkgDir/*.nupkg"
+  
+  find $nupkgDir -type f -name "*.nupkg" -delete
 
   dotnet pack --configuration Release
 
