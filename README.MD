@@ -17,10 +17,10 @@ dotnet docker-over-ssh --ssh-key "/Users/dev/.ssh/id_ed25519" \
         --local-port 4040 \
         --registry-host "192.168.10.10" \
         --registry-port 5000 \
-        --image "myrepo/db:latest" \
-        --image "myrepo/service1:latest" \
-        --image "myrepo/api:latest"
+        --image "kubernetes.docker.internal:4040/myrepo/db:latest" \
+        --image "kubernetes.docker.internal:4040/myrepo/service1:latest" \
+        --image "kubernetes.docker.internal:4040/myrepo/api:latest"
 ```
 
 ### Notes
-- The local image name format should be `$local-hostname:$local-port/$image-id:$image-tag`
+- The local image name format must be `$local-hostname:$local-port/$image-id:$image-tag`
