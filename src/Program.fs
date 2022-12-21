@@ -33,6 +33,12 @@ type Arguments =
             | Image _ -> "The docker images list"
 
 
+type ITaskProgress<'T> =
+    inherit IProgress<'T>
+    abstract Start : string -> unit
+    abstract Stop : unit -> unit
+
+
 let errorHandler =
     ProcessExiter(
         colorizer =
@@ -46,40 +52,37 @@ let argsParser =
     ArgumentParser.Create<Arguments>(programName = "docker-over-ssh", errorHandler = errorHandler)
 
 
-let initTable () =
-    let table = Table()
-    let headers = [ "ID"; "Status"; "Progress"; "Progress Message"; "Error"; "Error Message" ]
-    headers |> List.fold (fun (table: Table) -> table.AddColumn) table
-
-
-let messageProcess (table: Table) (ctx: LiveDisplayContext) =
-    let rows = Dictionary<string, JSONMessage>()
-    let inline refresh () =
-        table.Rows.Clear()
-        for row in rows.Values do
-            let columns =
-                seq {
-                    Text $"{row.ID}"
-                    Text $"{row.Status}"
-                    if isNotNull row.Progress then
-                        let progress = float row.Progress.Current / float row.Progress.Total
-                        Text (if Double.IsNaN progress then "N/A" else $"0.2f{progress * 100.0}%%") 
-                    if isNotNull row.ProgressMessage then
-                        Text row.ProgressMessage
-                    if isNotNull row.Error then
-                        Text $"{row.Error.Code}"
-                        Text row.Error.Message
-                }
-            columns
-            |> Seq.cast
-            |> table.AddRow
-            |> ignore
-        ctx.Refresh()
-    { new IProgress<JSONMessage> with
+let taskProgress (ctx: ProgressContext) =
+    let tasks = Dictionary<string, ProgressTask>()
+    let subTasks = Dictionary<string, ProgressTask>()
+    let mutable current = Unchecked.defaultof<string>
+    { new ITaskProgress<JSONMessage> with
+        member this.Start taskName =
+            this.Stop ()
+            subTasks.Clear ()
+            tasks[taskName] <- ctx.AddTask taskName
+            current <- taskName
+        member _.Stop () =
+            if isNotNull current && tasks.ContainsKey current then
+                tasks[current].StopTask()
+            for sub in subTasks do sub.Value.StopTask()
         member _.Report value =
-            let key = if isNull value.ID then "Nil" else value.ID
-            rows[key] <- value
-            refresh() }
+            if isNotNull value.Error then
+                AnsiConsole.MarkupLine $"[red]ERROR:[/] {value.ErrorMessage}"
+            elif isNull value.ID then
+                AnsiConsole.WriteLine $"{value.Status}"
+            else
+                let key = value.ID
+                if not (subTasks.ContainsKey key) then
+                    subTasks[key] <- ctx.AddTask key
+                let subTask = subTasks[key]
+                if isNotNull value.Progress then
+                    subTask.Description <- $"{key} {value.Status}"
+                    subTask.MaxValue <- float value.Progress.Total
+                    subTask.Increment (float value.Progress.Current)
+                if isNotNull value.Error then
+                    AnsiConsole.MarkupLine $"[red]ERROR:[/] {value.ErrorMessage}"
+        }
 
 
 let dockerClient () =
@@ -87,7 +90,7 @@ let dockerClient () =
     cfg.CreateClient()
 
 
-let run (args: ParseResults<Arguments>) (messageProcess: IProgress<JSONMessage>) =
+let run (args: ParseResults<Arguments>) (taskProgress: ITaskProgress<JSONMessage>) =
     task {
         let sshHost = args.GetResult SSH_Host
         let sshUser = args.GetResult SSH_User
@@ -109,24 +112,28 @@ let run (args: ParseResults<Arguments>) (messageProcess: IProgress<JSONMessage>)
         
         let docker = dockerClient ()
         for imageName in images do
-            do!
-                docker.Images.PushImageAsync(
-                    imageName,
-                    ImagePushParameters(),
-                    AuthConfig(),
-                    messageProcess
-                )
+            taskProgress.Start imageName
+            do! docker.Images.PushImageAsync(
+                imageName,
+                ImagePushParameters(),
+                AuthConfig(),
+                taskProgress
+            )
+            taskProgress.Stop ()
     }
 
 
 [<EntryPoint>]
 let main argv =
-    let table = initTable ()
-    AnsiConsole.Live(table)
+    AnsiConsole
+        .Progress()
+        .Columns(TaskDescriptionColumn(),
+            ProgressBarColumn(),
+            PercentageColumn(),
+            SpinnerColumn())
         .StartAsync(fun ctx -> task {
             let args = argsParser.ParseCommandLine argv
-            let proc = messageProcess table ctx
+            let proc = taskProgress ctx
             do! run args proc
-        })
-        .Wait()
+        }).Wait()
     0
