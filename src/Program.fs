@@ -103,7 +103,9 @@ let run (args: ParseResults<Arguments>) (taskProgress: ITaskProgress<JSONMessage
         use privateKey = new PrivateKeyFile(args.GetResult SSH_Key)
         use client = new SshClient(sshHost, sshUser, privateKey)
         client.Connect()
-
+        if not client.IsConnected then
+            failwith "SSH connection failed"
+        
         let forwardedPortLocal = new ForwardedPortLocal(localHostName, localPort, registryHost, registryPort)
         client.AddForwardedPort forwardedPortLocal
         forwardedPortLocal.Start()
