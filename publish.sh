@@ -16,5 +16,7 @@ if [[ -f ".env" ]]; then
   dotnet nuget push $nupkgFile --source https://api.nuget.org/v3/index.json --api-key $API_KEY
 
 else
+  # .env file template
+  # API_KEY=your_api_key_for_nuget
   echo ".env file is not found"
 fi
