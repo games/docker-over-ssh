@@ -8,6 +8,8 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionFolder", "SolutionFolder", "{001E668C-F5A8-401D-B0BB-D8F9A5B1C124}"
 	ProjectSection(SolutionItems) = preProject
 		publish.sh = publish.sh
+		README.MD = README.MD
+		RELEASE_NOTES.md = RELEASE_NOTES.md
 	EndProjectSection
 EndProject
 Global
