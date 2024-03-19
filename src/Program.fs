@@ -35,8 +35,8 @@ type Arguments =
 
 type ITaskProgress<'T> =
     inherit IProgress<'T>
-    abstract Start : string -> unit
-    abstract Stop : unit -> unit
+    abstract Start: string -> unit
+    abstract Stop: unit -> unit
 
 
 let errorHandler =
@@ -52,37 +52,76 @@ let argsParser =
     ArgumentParser.Create<Arguments>(programName = "docker-over-ssh", errorHandler = errorHandler)
 
 
+let (|Preparing|_|) (value: JSONMessage) =
+    if value.Status = "Preparing" then Some value.ID else None
+
+let (|Waiting|_|) (value: JSONMessage) =
+    if value.Status = "Waiting" then Some value.ID else None
+
+let (|HasError|_|) (value: JSONMessage) =
+    if isNotNull value.Error then Some value.Error else None
+
+let (|OnlyStatus|_|) (value: JSONMessage) =
+    if isNull value.ID && isNotNull value.Status then
+        Some value.Status
+    else
+        None
+
+let (|LayerAlreadyExisted|_|) (value: JSONMessage) =
+    if value.Status = "Layer already exists" then
+        Some(value.ID, $"{value.ID} {value.Status}")
+    else
+        None
+
+let (|OnGoing|_|) (value: JSONMessage) =
+    if isNotNull value.Progress && value.Progress.Total > 0 then
+        Some(value.ID, float value.Progress.Current, float value.Progress.Total, $"{value.ID} {value.Status}")
+    else
+        None
+
 let taskProgress (ctx: ProgressContext) =
     let tasks = Dictionary<string, ProgressTask>()
     let subTasks = Dictionary<string, ProgressTask>()
     let mutable current = Unchecked.defaultof<string>
+
+    let ensureSubTask key =
+        if not (subTasks.ContainsKey key) then
+            subTasks[key] <- ctx.AddTask key
+
     { new ITaskProgress<JSONMessage> with
         member this.Start taskName =
-            this.Stop ()
-            subTasks.Clear ()
+            this.Stop()
+            subTasks.Clear()
             tasks[taskName] <- ctx.AddTask taskName
             current <- taskName
-        member _.Stop () =
+
+        member _.Stop() =
             if isNotNull current && tasks.ContainsKey current then
                 tasks[current].StopTask()
-            for sub in subTasks do sub.Value.StopTask()
+
+            for sub in subTasks do
+                sub.Value.StopTask()
+
         member _.Report value =
-            if isNotNull value.Error then
-                AnsiConsole.MarkupLine $"[red]ERROR:[/] {value.ErrorMessage}"
-            elif isNull value.ID then
-                AnsiConsole.WriteLine $"{value.Status}"
-            else
-                let key = value.ID
-                if not (subTasks.ContainsKey key) then
-                    subTasks[key] <- ctx.AddTask key
-                let subTask = subTasks[key]
-                if isNotNull value.Progress then
-                    subTask.Description <- $"{key} {value.Status}"
-                    subTask.MaxValue <- float value.Progress.Total
-                    subTask.Increment (float value.Progress.Current)
-                if isNotNull value.Error then
-                    AnsiConsole.MarkupLine $"[red]ERROR:[/] {value.ErrorMessage}"
-        }
+            match value with
+            | HasError error -> AnsiConsole.MarkupLine $"[red]ERROR:[/] {error}"
+            | OnlyStatus status -> AnsiConsole.WriteLine(string status)
+            | Preparing key ->
+                ensureSubTask key
+                subTasks[key].Description <- "Preparing"
+            | Waiting key ->
+                ensureSubTask key
+                subTasks[key].Description <- "Waiting"
+            | LayerAlreadyExisted(key, description) ->
+                ensureSubTask key
+                subTasks[key].Description <- description
+                subTasks[key].StopTask()
+            | OnGoing(key, current, total, description) ->
+                ensureSubTask key
+                subTasks[key].Description <- description
+                subTasks[key].MaxValue <- total
+                subTasks[key].Value <- current
+            | _ -> () }
 
 
 let dockerClient () =
@@ -99,29 +138,28 @@ let run (args: ParseResults<Arguments>) (taskProgress: ITaskProgress<JSONMessage
         let registryHost = args.GetResult Registry_Host
         let registryPort = args.GetResult(Registry_Port, 5000u)
         let images = args.GetResults Image
-        
+
         use privateKey = new PrivateKeyFile(args.GetResult SSH_Key)
         use client = new SshClient(sshHost, sshUser, privateKey)
         client.Connect()
+
         if not client.IsConnected then
             failwith "SSH connection failed"
-        
-        let forwardedPortLocal = new ForwardedPortLocal(localHostName, localPort, registryHost, registryPort)
+
+        let forwardedPortLocal =
+            new ForwardedPortLocal(localHostName, localPort, registryHost, registryPort)
+
         client.AddForwardedPort forwardedPortLocal
         forwardedPortLocal.Start()
 
         do! Task.Delay 500
-        
+
         let docker = dockerClient ()
+
         for imageName in images do
             taskProgress.Start imageName
-            do! docker.Images.PushImageAsync(
-                imageName,
-                ImagePushParameters(),
-                AuthConfig(),
-                taskProgress
-            )
-            taskProgress.Stop ()
+            do! docker.Images.PushImageAsync(imageName, ImagePushParameters(), AuthConfig(), taskProgress)
+            taskProgress.Stop()
     }
 
 
@@ -129,13 +167,13 @@ let run (args: ParseResults<Arguments>) (taskProgress: ITaskProgress<JSONMessage
 let main argv =
     AnsiConsole
         .Progress()
-        .Columns(TaskDescriptionColumn(),
-            ProgressBarColumn(),
-            PercentageColumn(),
-            SpinnerColumn())
-        .StartAsync(fun ctx -> task {
-            let args = argsParser.ParseCommandLine argv
-            let proc = taskProgress ctx
-            do! run args proc
-        }).Wait()
+        .Columns(TaskDescriptionColumn(), ProgressBarColumn(), PercentageColumn(), SpinnerColumn())
+        .StartAsync(fun ctx ->
+            task {
+                let args = argsParser.ParseCommandLine argv
+                let proc = taskProgress ctx
+                do! run args proc
+            })
+        .Wait()
+
     0
