@@ -74,7 +74,7 @@ let (|LayerAlreadyExisted|_|) (value: JSONMessage) =
         None
 
 let (|OnGoing|_|) (value: JSONMessage) =
-    if isNotNull value.Progress && value.Progress.Total > 0 then
+    if isNotNull value.Progress && value.Progress.Current < value.Progress.Total then
         Some(value.ID, float value.Progress.Current, float value.Progress.Total, $"{value.ID} {value.Status}")
     else
         None
@@ -82,22 +82,25 @@ let (|OnGoing|_|) (value: JSONMessage) =
 let taskProgress (ctx: ProgressContext) =
     let tasks = Dictionary<string, ProgressTask>()
     let subTasks = Dictionary<string, ProgressTask>()
-    let mutable current = Unchecked.defaultof<string>
+    let mutable current = Unchecked.defaultof<ProgressTask>
 
-    let ensureSubTask key =
+    let getOrCreateSubTask key =
         if not (subTasks.ContainsKey key) then
             subTasks[key] <- ctx.AddTask key
+            current.MaxValue <- current.MaxValue + 1.0
+
+        subTasks[key]
 
     { new ITaskProgress<JSONMessage> with
         member this.Start taskName =
             this.Stop()
             subTasks.Clear()
-            tasks[taskName] <- ctx.AddTask taskName
-            current <- taskName
+            current <- ctx.AddTask(taskName, maxValue = 0)
+            tasks[taskName] <- current
 
         member _.Stop() =
-            if isNotNull current && tasks.ContainsKey current then
-                tasks[current].StopTask()
+            if isNotNull current then
+                current.StopTask()
 
             for sub in subTasks do
                 sub.Value.StopTask()
@@ -107,20 +110,21 @@ let taskProgress (ctx: ProgressContext) =
             | HasError error -> AnsiConsole.MarkupLine $"[red]ERROR:[/] {error}"
             | OnlyStatus status -> AnsiConsole.WriteLine(string status)
             | Preparing key ->
-                ensureSubTask key
-                subTasks[key].Description <- "Preparing"
+                let sub = getOrCreateSubTask key
+                sub.Description <- "Preparing"
             | Waiting key ->
-                ensureSubTask key
-                subTasks[key].Description <- "Waiting"
+                let sub = getOrCreateSubTask key
+                sub.Description <- "Waiting"
             | LayerAlreadyExisted(key, description) ->
-                ensureSubTask key
-                subTasks[key].Description <- description
-                subTasks[key].StopTask()
+                let sub = getOrCreateSubTask key
+                sub.Description <- description
+                sub.StopTask()
+                current.Increment 1.0
             | OnGoing(key, current, total, description) ->
-                ensureSubTask key
-                subTasks[key].Description <- description
-                subTasks[key].MaxValue <- total
-                subTasks[key].Value <- current
+                let sub = getOrCreateSubTask key
+                sub.Description <- description
+                sub.MaxValue <- total
+                sub.Value <- current
             | _ -> () }
 
 
