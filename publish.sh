@@ -3,7 +3,7 @@ set -e
 
 if [[ -f ".env" ]]; then
 
-  export "$(cat .env | xargs)"
+  export "$(xargs < .env)"
   nupkgDir="./src/nupkg"
   
   find $nupkgDir -type f -name "*.nupkg" -delete
