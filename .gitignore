@@ -2,6 +2,7 @@
 .ionide
 .env
 .DS_Store
+*.DotSettings.user
 local_test.sh
 src/nupkg
 bin
