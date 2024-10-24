@@ -151,11 +151,11 @@ let run (args: ParseResults<Arguments>) (taskProgress: ITaskProgress<JSONMessage
         if not client.IsConnected then
             failwith "SSH connection failed"
 
-        let forwardedPortLocal =
+        let forwardedPort =
             new ForwardedPortLocal(localHostName, localPort, registryHost, registryPort)
 
-        client.AddForwardedPort forwardedPortLocal
-        forwardedPortLocal.Start()
+        client.AddForwardedPort forwardedPort
+        forwardedPort.Start()
 
         do! Task.Delay 500
 
