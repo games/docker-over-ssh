@@ -1,5 +1,6 @@
 ﻿open System
 open System.Collections.Generic
+open System.Threading
 open System.Threading.Tasks
 open Argu
 open Docker.DotNet.Models
@@ -107,7 +108,7 @@ let taskProgress (ctx: ProgressContext) =
 
         member _.Report value =
             match value with
-            | HasError error -> AnsiConsole.MarkupLine $"[red]ERROR:[/] {error}"
+            | HasError error -> failwith $"({error.Code}) {error.Message}"
             | OnlyStatus status -> AnsiConsole.WriteLine(string status)
             | Preparing key ->
                 let sub = getOrCreateSubTask key
@@ -133,7 +134,7 @@ let dockerClient () =
     cfg.CreateClient()
 
 
-let run (args: ParseResults<Arguments>) (taskProgress: ITaskProgress<JSONMessage>) =
+let run (args: ParseResults<Arguments>) (taskProgress: ITaskProgress<JSONMessage>) (stoppingToken: CancellationToken) =
     task {
         let sshHost = args.GetResult SSH_Host
         let sshUser = args.GetResult SSH_User
@@ -145,7 +146,7 @@ let run (args: ParseResults<Arguments>) (taskProgress: ITaskProgress<JSONMessage
 
         use privateKey = new PrivateKeyFile(args.GetResult SSH_Key)
         use client = new SshClient(sshHost, sshUser, privateKey)
-        client.Connect()
+        do! client.ConnectAsync stoppingToken
 
         if not client.IsConnected then
             failwith "SSH connection failed"
@@ -162,22 +163,41 @@ let run (args: ParseResults<Arguments>) (taskProgress: ITaskProgress<JSONMessage
 
         for imageName in images do
             taskProgress.Start imageName
-            do! docker.Images.PushImageAsync(imageName, ImagePushParameters(), AuthConfig(), taskProgress)
+
+            do!
+                docker.Images.PushImageAsync(
+                    imageName,
+                    ImagePushParameters(),
+                    AuthConfig(),
+                    taskProgress,
+                    stoppingToken
+                )
+
             taskProgress.Stop()
+
+        client.Disconnect()
     }
 
 
 [<EntryPoint>]
 let main argv =
-    AnsiConsole
-        .Progress()
-        .Columns(TaskDescriptionColumn(), ProgressBarColumn(), PercentageColumn(), SpinnerColumn())
-        .StartAsync(fun ctx ->
-            task {
-                let args = argsParser.ParseCommandLine argv
-                let proc = taskProgress ctx
-                do! run args proc
-            })
-        .Wait()
+    let cts = new CancellationTokenSource()
 
-    0
+    try
+        AnsiConsole
+            .Progress()
+            .Columns(TaskDescriptionColumn(), ProgressBarColumn(), PercentageColumn(), SpinnerColumn())
+            .StartAsync(fun ctx ->
+                task {
+                    let args = argsParser.ParseCommandLine argv
+                    let proc = taskProgress ctx
+                    do! run args proc cts.Token
+                })
+            .Wait()
+
+        0
+    with ex ->
+        cts.Cancel()
+        AnsiConsole.MarkupLine "[red]ERROR:[/]"
+        AnsiConsole.WriteLine $" {ex.Message}"
+        1
